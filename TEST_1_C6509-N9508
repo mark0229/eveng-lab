@@ -1,0 +1,227 @@
+[DJ_9508_1]
+--------------------
+
+feature bash-shell
+feature interface-vlan
+feature hsrp
+feature lacp
+
+hostname DJ_9508_1
+
+interface Ethernet1/1
+  description ### DJ_9508_1(Eth1/1)-HH_6509_1(e0/0)###
+  no switchport
+  no ip redirects
+  ip address 192.168.1.1/30
+  no shutdown
+
+interface Ethernet1/2
+  description ### DJ_9508_1(Eth1/2)-DJ-UDR###
+  no switchport
+  no ip redirects
+  ip address 192.168.10.1/30
+  no shutdown
+
+interface Ethernet1/7
+  description ### DJ_9508_1(Eth1/7)-DJ_9508_2(Eth1/7)###
+  no switchport
+  no ip redirects
+  ip address 192.168.3.1/30
+  no shutdown
+  
+ip route 0.0.0.0/0 Ethernet1/1 192.168.1.2
+ip route 0.0.0.0/0 Ethernet1/7 192.168.3.2 name Backup-Route 130
+
+//LACP설정
+
+no ip route 0.0.0.0/0 Ethernet1/1 192.168.1.2
+no ip route 0.0.0.0/0 Ethernet1/7 192.168.3.2 name Backup-Route 130
+
+default interface Ethernet1/1
+
+interface po11
+description ### DJ_9508_1(Eth1/1)-HH_6509_1(e0/0); Po11###
+no switchport
+no ip redirects
+ip address 192.168.1.1/30
+
+interface Ethernet1/1
+description ### DJ_9508_1(Eth1/1)-HH_6509_1(e0/0); Po11###
+no switchport
+lacp rate fast
+channel-group 11 force mode active
+no shutdown
+
+ip route 0.0.0.0/0 po11 192.168.1.2
+ip route 0.0.0.0/0 Ethernet1/7 192.168.3.2 name Backup-Route 130
+
+확인
+show port-channel summay
+show lacp interface eth1/1  //lacp fast, slow 모드 확인
+show ip route 
+
+//상용: channel-group 11mode active
+//EVE-NG에서는 force mode로 active
+
+// slow 모드 : 절체타임 90초, fat 모드:  절체타임 3초
+
+
+[DJ_9508_2]
+--------------------
+
+feature bash-shell
+feature interface-vlan
+feature hsrp
+feature lacp
+
+hostname DJ_9508_2
+
+interface Ethernet1/1
+  description ### DJ_9508_2(Eth1/1)-HH_6509_2(e0/0)###
+  no switchport
+  no ip redirects
+  ip address 192.168.2.1/30
+  no shutdown
+
+interface Ethernet1/7
+  description ### DJ_9508_2(Eth1/7)-DJ_9508_1(Eth1/7)###
+  no switchport
+  no ip redirects
+  ip address 192.168.3.2/30
+  no shutdown
+
+ip route 0.0.0.0/0 Ethernet1/1 192.168.2.2
+ip route 0.0.0.0/0 Ethernet1/1 192.168.3.1  name Backup-Route 130
+ip route 192.168.10.0/24 Ethernet1/7 192.168.3.1 
+
+[HH_6509_1]
+--------------------
+hostname HH_6509_1
+no ip domain lookup
+
+
+interface e0/0
+ no switchport
+ description ###HH_6509_1(e0/0) - DJ_9508_1(Eth1/1)###
+ ip address 192.168.1.2 255.255.255.252
+ no ip redirects
+ no ip unreachables
+ no ip proxy-arp
+ load-interval 30
+ carrier-delay msec 0
+ no shutdown
+ 
+interface e0/1
+ no switchport
+ description ###HH_6509_1(e0/1) - HH_DRA###
+ ip address 192.168.20.1 255.255.255.252
+ no ip redirects
+ no ip unreachables
+ no ip proxy-arp
+ load-interval 30
+ carrier-delay msec 0
+ no shutdown
+ 
+interface e0/3
+ no switchport
+ description ###HH_6509_1(e0/3) - HH_6509_2(e0/3)###
+ ip address 192.168.4.1 255.255.255.252
+ no ip redirects
+ no ip unreachables
+ no ip proxy-arp
+ load-interval 30
+ carrier-delay msec 0
+ no shutdown
+  
+ ip route 0.0.0.0 0.0.0.0 e0/0 192.168.1.1
+ ip route 0.0.0.0 0.0.0.0 e0/3 192.168.4.2 name Backup-Route 130
+ ip route 192.168.20.0 255.255.255.0 e0/3 192.168.4.2
+ 
+ //LACP설정
+
+no  ip route 0.0.0.0 0.0.0.0 e0/0 192.168.1.1
+no  ip route 0.0.0.0 0.0.0.0 e0/3 192.168.4.2 name Backup-Route 130
+no  ip route 192.168.20.0 255.255.255.0 e0/3 192.168.4.2
+
+default interface e0/0
+
+interface po11
+ no switchport
+ ip address 192.168.1.2 255.255.255.0
+ no ip redirects
+ lacp fast-switchover
+
+interface e0/0
+ description ### HH_6509_1(e0/0)-DJ_9508_1(Eth1/1); Po11###
+ no switchport
+ no ip address
+ channel-group 11 mode active
+ 
+ip route 0.0.0.0 0.0.0.0 po11 192.168.1.1
+ip route 0.0.0.0 0.0.0.0 e0/3 192.168.4.2 name Backup-Route 130
+ip route 192.168.20.0 255.255.255.0 e0/3 192.168.4.2
+
+**/상용버전
+---> EVENG에서는 LACP FAST MODE 지원하지 않음
+
+interface po11
+ no switchport
+ ip address 192.168.1.2 255.255.255.0
+ no ip redirects
+
+interface e0/0
+ description ### HH_6509_1(e0/0)-DJ_9508_1(Eth1/1); Po11###
+ no switchport
+ no ip address
+ lacp rate fast
+ channel-group 11 mode active
+ 
+확인: show etherchannel summary
+        show lacp internal   //fast, slow mode 확인
+        show ip route
+
+//IOS fast mode는 port channel에서 설정
+ 
+ [HH_6509_2]
+--------------------
+hostname HH_6509_2
+no ip domain lookup
+
+
+interface e0/0
+ no switchport
+ description ###HH_6509_2(e0/0) - DJ_9508_2(Eth1/1)###
+ ip address 192.168.2.2 255.255.255.252
+ no ip redirects
+ no ip unreachables
+ no ip proxy-arp
+ load-interval 30
+ carrier-delay msec 0
+ no shutdown
+ 
+interface e0/3
+ no switchport
+ description ###HH_6509_1(e0/3) - HH_6509_2(e0/3)###
+ ip address 192.168.4.2 255.255.255.252
+ no ip redirects
+ no ip unreachables
+ no ip proxy-arp
+ load-interval 30
+ carrier-delay msec 0
+ no shutdown
+ 
+ip route 0.0.0.0 0.0.0.0 Ethernet0/0 192.168.2.1
+ip route 0.0.0.0 0.0.0.0 Ethernet0/3 192.168.4.1 130 name Backup-Route
+ip route 192.168.20.0 255.255.255.0 Ethernet0/3 192.168.4.1
+ 
+ [DJ-UDR]
+--------------------  
+set pcname DJ-UDR
+ip 192.168.10.2/24 192.168.10.1
+save
+
+ [HH-DRA]
+--------------------  
+set pcname HH-DRA
+ip 192.168.20.2/24 192.168.20.1
+save
